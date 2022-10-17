@@ -6,9 +6,10 @@ ARG LIBASS_VERSION=0.16.0
 ARG LIBASS_URL="https://github.com/libass/libass/releases/download/$LIBASS_VERSION/libass-$LIBASS_VERSION.tar.gz"
 ARG LIBASS_SHA256=fea8019b1887cab9ab00c1e58614b4ec2b1cee339b3f7e446f5fab01b032d430
 
-# bump: alpine /FROM alpine:([\d.]+)/ docker:alpine|^3
-# bump: alpine link "Release notes" https://alpinelinux.org/posts/Alpine-$LATEST-released.html
-FROM alpine:3.16.2 AS base
+# Must be specified
+ARG ALPINE_VERSION
+
+FROM alpine:${ALPINE_VERSION} AS base
 
 FROM base AS download
 ARG LIBASS_URL
@@ -30,13 +31,18 @@ COPY --from=download /tmp/libass/ /tmp/libass/
 WORKDIR /tmp/libass
 RUN \
   apk add --no-cache --virtual build \
-    build-base \
+    build-base pkgconf \
     freetype freetype-dev freetype-static \
     fribidi-dev fribidi-static \
     harfbuzz-dev harfbuzz-static \
     fontconfig-dev fontconfig-static && \
   ./configure --disable-shared --enable-static && \
   make -j$(nproc) && make install && \
+  # Sanity tests
+  pkg-config --exists --modversion --path libass && \
+  ar -t /usr/local/lib/libass.a && \
+  readelf -h /usr/local/lib/libass.a && \
+  # Cleanup
   apk del build
 
 FROM scratch
